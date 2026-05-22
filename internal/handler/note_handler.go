@@ -1,3 +1,4 @@
+// Package handler - HTTP обработчики запросов
 package handler
 
 import (
