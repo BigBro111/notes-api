@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes Manager</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: Arial, sans-serif; 
+            background: #1a1a2e; 
+            color: #eee; 
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 600px; margin: 0 auto; }
+        h1 { 
+            text-align: center; 
+            color: #e94560; 
+            margin-bottom: 30px;
+            font-size: 28px;
+        }
+        .add-form {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .add-form input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 2px solid #0f3460;
+            border-radius: 5px;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 16px;
+        }
+        .add-form input:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+        .add-form button {
+            width: 100%;
+            padding: 12px;
+            background: #e94560;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .add-form button:hover {
+            background: #c73e54;
+        }
+        .note-card {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .note-info h3 {
+            color: #e94560;
+            margin-bottom: 5px;
+        }
+        .note-info p {
+            color: #888;
+            font-size: 14px;
+        }
+        .note-card button {
+            padding: 8px 15px;
+            background: #0f3460;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .note-card button:hover {
+            background: #e94560;
+        }
+        .empty {
+            text-align: center;
+            color: #888;
+            padding: 40px;
+            font-size: 18px;
+        }
+        .status {
+            text-align: center;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+        .status.success { background: #0f3460; display: block; }
+        .status.error { background: #e94560; display: block; }
+        .tag {
+            display: inline-block;
+            background: #0f3460;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 Менеджер заметок</h1>
+        
+        <div id="status" class="status"></div>
+        
+        <div class="add-form">
+            <h2 style="margin-bottom: 15px; color: #e94560;">Новая заметка</h2>
+            <input type="text" id="title" placeholder="Название заметки">
+            <input type="text" id="tags" placeholder="Теги (через запятую)">
+            <button onclick="createNote()">➕ Создать заметку</button>
+        </div>
+
+        <h2 style="margin-bottom: 15px; color: #e94560;">Активные заметки</h2>
+        <div id="notesList"></div>
+    </div>
+
+    <script>
+        const API = 'http://localhost:8080/api/v1/notes';
+
+        function showStatus(msg, type) {
+            const s = document.getElementById('status');
+            s.textContent = msg;
+            s.className = 'status ' + type;
+            setTimeout(() => s.className = 'status', 3000);
+        }
+
+        async function loadNotes() {
+            try {
+                const res = await fetch(API);
+                const notes = await res.json();
+                const div = document.getElementById('notesList');
+                
+                if (!notes || notes.length === 0) {
+                    div.innerHTML = '<div class="empty">Нет активных заметок 📭</div>';
+                    return;
+                }
+
+                div.innerHTML = notes.map(n => `
+                    <div class="note-card">
+                        <div class="note-info">
+                            <h3>${n.title}</h3>
+                            <p>${(n.tags || []).map(t => `<span class="tag">${t}</span>`).join(' ')}</p>
+                        </div>
+                        <button onclick="doneNote('${n.id}')">✅ Готово</button>
+                    </div>
+                `).join('');
+            } catch(e) {
+                showStatus('Ошибка загрузки заметок', 'error');
+            }
+        }
+
+        async function createNote() {
+            const title = document.getElementById('title').value.trim();
+            const tagsStr = document.getElementById('tags').value.trim();
+            
+            if (!title) {
+                showStatus('Введите название заметки', 'error');
+                return;
+            }
+
+            const tags = tagsStr ? tagsStr.split(',').map(t => t.trim()).filter(t => t) : [];
+
+            try {
+                const res = await fetch(API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, tags })
+                });
+                
+                if (res.ok) {
+                    showStatus('Заметка создана!', 'success');
+                    document.getElementById('title').value = '';
+                    document.getElementById('tags').value = '';
+                    loadNotes();
+                }
+            } catch(e) {
+                showStatus('Ошибка создания заметки', 'error');
+            }
+        }
+
+        async function doneNote(id) {
+            try {
+                const res = await fetch(`${API}/${id}/done`, { method: 'PUT' });
+                if (res.ok) {
+                    showStatus('Заметка выполнена! ✅', 'success');
+                    loadNotes();
+                }
+            } catch(e) {
+                showStatus('Ошибка обновления заметки', 'error');
+            }
+        }
+
+        // Загрузка при открытии страницы
+        loadNotes();
+    </script>
+</body>
+</html>
