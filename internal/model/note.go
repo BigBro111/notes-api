@@ -1,3 +1,4 @@
+// Package model - модели данных приложения
 package model
 
 type Note struct {
